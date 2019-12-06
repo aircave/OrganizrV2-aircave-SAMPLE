@@ -1,0 +1,276 @@
+################################################################################################################
+#////////////////////////////////////////////////SERVER BLOCK\\\\\\\\\\\\\\\\\\\\\\\\\#
+################################################################################################################
+
+# Redirect HTTP traffic to HTTPS
+server {
+	listen 80; # Default listen port
+	server_name    [YOUR DOMAIN GOES HERE].com;
+	return 301 https://$server_name$request_uri;
+}
+################################################################################################################
+#////////////////////////////////////////////////MAIN SERVER BLOCK\\\\\\\\\\\\\\\\\\\\\\#
+################################################################################################################
+
+# MAIN SERVER BLOCK
+server {
+	listen 443 ssl default_server;		
+	server_name [YOUR DOMAIN GOES HERE].com; #CHANGE THIS TO YOUR DOMAIN NAME!
+
+## READ THE COMMENT ON add_header X-Frame-Options AND add_header Content-Security-Policy IF YOU USE THIS ON A SUBDOMAIN YOU WANT TO IFRAME!
+
+### intermediate configuration per ssl-config.mozilla.org
+	ssl_protocols TLSv1.2 TLSv1.3;
+
+## Certificates from LE container placement
+	ssl_certificate /config/keys/letsencrypt/fullchain.pem;
+	ssl_certificate_key /config/keys/letsencrypt/privkey.pem;
+	ssl_dhparam /config/nginx/dhparams.pem; # Diffie–Hellman Bit value: 4096
+	ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
+	ssl_prefer_server_ciphers on; 
+
+## For Strong Security recommended settings see cipherli.st
+	ssl_ecdh_curve secp384r1; # Requires nginx >= 1.1.0
+	ssl_session_timeout 1d;
+	ssl_session_cache shared:MozSSL:10m;  # about 40000 sessions
+	ssl_stapling on; # Requires nginx >= 1.3.7
+	ssl_stapling_verify on; # Requires nginx => 1.3.7
+
+# NOTE GEO BLOCK REQUIRES THE FOLLOWIN IN LE DOCKER FILES - edid nginx.conf + add geoblock.conf + add geoblicksites.conf
+# LOCAL IP ALLOW GEO BLOCK
+    if ($lan-ip = yes) {
+    set $allowed_country yes;
+    }
+    
+# COUNTRY GEO BLOCK 
+    if ($allowed_country = no) {
+    return 444;
+    }
+	
+## NOTE: The add_header Content-Security-Policy won't work with duckdns since you don't own the root domain. Just buy a domain. It's cheap
+## Settings to add strong security profile (A+ on securityheaders.io/ssllabs.com)
+## Source: https://github.com/gilbN/Nostromo/blob/master/Server/nginx/strong-ssl.conf
+
+proxy_set_header X-Forwarded-Proto https;
+proxy_redirect  http://  $scheme://;
+add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload";
+add_header X-Content-Type-Options nosniff;
+add_header X-XSS-Protection "1; mode=block";
+add_header X-Robots-Tag none; #SET THIS TO index IF YOU WANT GOOGLE TO INDEX YOU SITE!
+add_header Content-Security-Policy "frame-ancestors https://*.$server_name https://$server_name"; # Add your domains you want to enable iframing on. Use sub-strong-ssl.conf on subdomains you want to iframe.
+add_header X-Frame-Options SAMEORIGIN;
+add_header Referrer-Policy "strict-origin-when-cross-origin";
+add_header Feature-Policy "geolocation none;midi none;notifications none;push none;sync-xhr none;microphone none;camera none;magnetometer none;gyroscope none;speaker self;vibrate none;fullscreen self;payment none;";
+proxy_cookie_path / "/; HTTPOnly; Secure"; ##NOTE: This may cause issues with unifi. Remove HTTPOnly; or create another ssl config for unifi.
+more_set_headers "Server: Classified";
+more_clear_headers 'X-Powered-By';
+
+#Organizr V2 error pages - DO NOT USE IF USING htpasswd file i.e. for DELUGE NZB360 APP ACCESS
+#	error_page 400 403 404 405 408 500 502 503 504 =200 /?error=$status;
+#	error_page 401 =200 /?error=$status&return=$request_uri;
+
+#AUTHORIZATION BLOCK 
+location ~ /auth-(.*) {
+ internal;
+ proxy_pass http://[INTERNAL IP]:[ORGANIZR PORT #]/api/?v1/auth&group=$1;
+ proxy_set_header Content-Length "";
+}
+
+#ORGANIZR CONTAINER
+location / {
+proxy_pass http://[INTERNAL IP]:[ORGANIZR PORT #];
+include /config/nginx/proxy.conf;
+}
+
+
+################################################################################################################
+#////////////////////////////////////////////////SUBDIRECTORIES\\\\\\\\\\\\\\\\\\\\\\\\#
+################################################################################################################
+
+# PLEX SUB DIR
+# Check the comment in the bottom of this page for the include /config/nginx/plex.conf
+
+#PLEX
+location /web {
+	# serve the CSS code
+	proxy_pass http://[INTERNAL IP]:32400;
+}
+
+#PLEX - Main /plex rewrite
+location /plex {
+	# proxy request to plex server
+	proxy_pass http://[INTERNAL IP]:32400/web;
+}
+
+#NZBGET CONTAINER - Reverse Proxy
+location /nzbget {
+auth_request /auth-4;
+proxy_pass http://[INTERNAL IP]:6789;
+include /config/nginx/proxy.conf;
+}
+
+# NZBGET ALLOW API FOR MOBILE APPS
+location /nzbget/api {
+proxy_pass http://[INTERNAL IP]:6789/xmlrpc;
+include /config/nginx/proxy.conf; 
+}  
+
+#IF USING binhex/DELUGE-VPN download and then rename the egg plugin to 'webapi.egg' and place inside plugin folder
+#DELUGE CONTAINER - Reverse Proxy
+location /deluge {
+    return 301 $scheme://$host/deluge/;
+}
+location /deluge/ {
+auth_request /auth-4;
+proxy_pass http://127.0.0.1:[ORGANIZR PORT #]12/;
+proxy_set_header X-Deluge-Base "/deluge/";
+#add_header X-Frame-Options "SAMEORIGIN";
+proxy_set_header Host $host;
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+proxy_set_header X-Forwarded-Proto $scheme;
+proxy_http_version 1.1;
+proxy_no_cache $cookie_session;
+proxy_set_header Accept-Encoding "";
+proxy_set_header Connection "keep-alive";
+   sub_filter
+   '</head>'
+   '<link rel="stylesheet" type="text/css" href="https://gilbn.github.io/theme.park/CSS/themes/deluge/plex.css">
+   </head>';
+   sub_filter_once on;
+#include /config/nginx//js/deluge_noauth.js; 
+rewrite /deluge(.*) $1 break;
+}
+
+# DELUGE ALLOW API FOR MOBILE APPS
+location /deluge/json {
+auth_request off;
+proxy_pass http://[INTERNAL IP]:[ORGANIZR PORT #]12/;
+}
+
+#SONARR CONTAINER - Reverse Proxy
+location /sonarr {
+auth_request /auth-4;
+proxy_pass http://[INTERNAL IP]:8989/sonarr;
+include /config/nginx/proxy.conf;
+}
+
+# SONARR ALLOW API FOR MOBILE APPS
+location /sonarr/api {
+proxy_pass http://[INTERNAL IP]:8989/sonarr/api;
+include /config/nginx/proxy.conf; 
+}
+
+#RADARR CONTAINER - Reverse Proxy
+location /radarr {
+auth_request /auth-4;
+proxy_pass http://[INTERNAL IP]:[RADARR PORT]/radarr;
+include /config/nginx/proxy.conf;
+}
+
+# RADARR ALLOW API FOR MOBILE APPS
+location /radarr/api {
+proxy_pass http://[INTERNAL IP]:[RADARR PORT]/radarr/api;
+include /config/nginx/proxy.conf; 
+}
+
+#LIDARR CONTAINER - Reverse Proxy
+location /lidarr {
+auth_request /auth-4;
+proxy_pass http://[INTERNAL IP]:8686/lidarr;
+include /config/nginx/proxy.conf;
+}
+
+# LIDARR ALLOW API FOR MOBILE APPS
+location /lidarr/api {
+proxy_pass http://[INTERNAL IP]:8686/lidarr/api;
+include /config/nginx/proxy.conf; 
+}
+
+#JACKETT CONTAINER - Reverse Proxy
+location /jackett/ {
+auth_request /auth-0;
+proxy_pass         http://[INTERNAL IP]:9117;
+proxy_http_version 1.1;
+proxy_set_header   Upgrade $http_upgrade;
+proxy_set_header   Connection keep-alive;
+proxy_cache_bypass $http_upgrade;
+proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+proxy_set_header   X-Forwarded-Proto $scheme;
+proxy_set_header   X-Forwarded-Host $http_host;
+#include /config/nginx/proxy.conf; 
+}
+
+#LIBRARY CONTAINER - Reverse Proxy
+location /library {
+auth_request /auth-4;
+proxy_pass http://[INTERNAL IP]:5299/library;
+include /config/nginx/proxy.conf;
+}
+
+
+#GUACAMOLE CONTAINER - Reverse Proxy
+location /guacamole {
+    proxy_pass http://[INTERNAL IP]:[GUAC PORT]/guacamole;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_buffering off;
+	proxy_http_version 1.1; #not needed?
+	proxy_set_header Upgrade $http_upgrade;
+    access_log off;
+    auth_basic "Restricted"; #Can be disabled - I like extra security to guacamole
+	auth_basic_user_file /config/nginx/.htpasswd; #Can be disabled - I like extra security to guacamole
+	}
+	
+# Robots.txt disallow all with nginx
+location = /robots.txt {
+	add_header  Content-Type  text/plain;
+	return 200 "User-agent: *\nDisallow: /\n";
+   }
+}
+
+################################################################################################################
+#////////////////////////////////////////////////SUBDOMAINS\\\\\\\\\\\\\\\\\\\\\\\\\\#
+################################################################################################################
+
+#PLEX SERVER 
+server {
+listen 443 ssl http2;
+server_name plex plex.domain.com;
+
+location /error/ {
+alias /www/errorpages/;
+internal;
+}
+
+location / {
+proxy_intercept_errors off;
+proxy_redirect off;
+proxy_buffering off;
+proxy_hide_header X-Frame-Options;
+
+# Spoof the request as coming from ourselves since otherwise Plex will block access, e.g. logging:
+# "Request came in with unrecognized domain / IP 'tv.example.com' in header Referer; treating as non-local"
+proxy_set_header Host $server_addr;
+proxy_set_header Referer $server_addr;
+proxy_set_header Origin $server_addr;
+
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+proxy_set_header X-Plex-Client-Identifier $http_x_plex_client_identifier;
+proxy_set_header Cookie $http_cookie;
+
+## Required for Websockets
+proxy_http_version 1.1;
+proxy_set_header Upgrade $http_upgrade;
+proxy_set_header Connection "upgrade";
+proxy_read_timeout 36000s; # Timeout after 10 hours
+
+proxy_next_upstream error timeout invalid_header http_500 http_502 http_503 http_504;
+
+#if ($cookie_cookiePassword != "yourcookiepasswordhere") { return 401; }
+proxy_pass http://[INTERNAL IP]:32400;
+}
+
+}
