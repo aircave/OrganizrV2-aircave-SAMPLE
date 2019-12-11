@@ -36,3 +36,5 @@ Go to the unRAID letsencrypt docker folder. Go to the letsencrypt/nginx/site-con
   
 Go to the letsencrypt/nginx folder. You will need the nginx, geoblock and geoblocksites files.
 You already have an nginx file, so you just have to [uncomment line 24](https://github.com/aircave/OrganizrV2-aircave-SAMPLE/blob/master/unraid-dockers/letsencrypt/nginx/nginx.conf). 
+
+This guide was heavily inspired by [TechnicalRamblings](https://technicalramblings.com) as well as other random guides I found online. Please join the Organizr [Discord](https://organizr.app/discord) chat room for help.
