@@ -20,8 +20,12 @@ Features:
 ## Before your start
  - You will be editing files in the unRAID dockers. Make backups.
  - Create a working directory outside of unRAID. You will edit this files. When changes are made to a file copy them over to the corresponding unRAID directory and restart the docker to test.
+ - Remember to go over IP address and port numbers and change them as needed for your setup.
+ - All MYDOMAIN references should be changed to your domain.
 
 ## Let's Encrypt
 Go to the unRAID letsencrypt docker folder. Go the the nginx/site-confs folder. You will be editing the “[default](https://github.com/aircave/OrganizrV2-aircave-SAMPLE/tree/master/unraid-dockers/letsencrypt/nginx/site-confs)” file. 
 
-This first part of the file will redirect all unencrypted http traffic to HTTPS/SSL.
+ 1. The 1st "SERVER BLOCK" part redirects unencrypted HTTP traffic to HTTPS/SSL.
+ 2. The 2nd "MAIN SERVER BLOCK" gives general instructions and negotiates encryption.
+ 3. The 3rd "SUBDIRECTORIES" part gives access to specific dockers after logging in to OrganizrV2.
