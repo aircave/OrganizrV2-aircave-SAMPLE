@@ -5,7 +5,7 @@
 # Redirect HTTP traffic to HTTPS
 server {
 	listen 80; # Default listen port
-	server_name    [YOUR DOMAIN GOES HERE].com;
+	server_name    MYDOMAIN.com;
 	return 301 https://$server_name$request_uri;
 }
 ################################################################################################################
@@ -15,7 +15,7 @@ server {
 # MAIN SERVER BLOCK
 server {
 	listen 443 ssl default_server;		
-	server_name [YOUR DOMAIN GOES HERE].com; #CHANGE THIS TO YOUR DOMAIN NAME!
+	server_name MYDOMAIN.com; #CHANGE THIS TO YOUR DOMAIN NAME!
 
 ## READ THE COMMENT ON add_header X-Frame-Options AND add_header Content-Security-Policy IF YOU USE THIS ON A SUBDOMAIN YOU WANT TO IFRAME!
 
@@ -36,7 +36,6 @@ server {
 	ssl_stapling on; # Requires nginx >= 1.3.7
 	ssl_stapling_verify on; # Requires nginx => 1.3.7
 
-# NOTE GEO BLOCK REQUIRES THE FOLLOWIN IN LE DOCKER FILES - edid nginx.conf + add geoblock.conf + add geoblicksites.conf
 # LOCAL IP ALLOW GEO BLOCK
     if ($lan-ip = yes) {
     set $allowed_country yes;
@@ -65,20 +64,23 @@ proxy_cookie_path / "/; HTTPOnly; Secure"; ##NOTE: This may cause issues with un
 more_set_headers "Server: Classified";
 more_clear_headers 'X-Powered-By';
 
-#Organizr V2 error pages - DO NOT USE IF USING htpasswd file i.e. for DELUGE NZB360 APP ACCESS
-#	error_page 400 403 404 405 408 500 502 503 504 =200 /?error=$status;
-#	error_page 401 =200 /?error=$status&return=$request_uri;
+#Organizr V2 Custom Error Pages - DO NOT USE IF USING htpasswd file i.e. for DELUGE NZB360 APP ACCESS
+	error_page 401 https://MYDOMAIN.COM/?error=$status&return=$scheme://$server_name$request_uri;
+   	error_page 400 402 403 404 405 408 502 503 504  https://MYDOMAIN.COM/?error=$status;
+	proxy_intercept_errors on; #For custom Organizr error pages. This may give you issues with the /plex location. Just add a proxy_intercept_errors off; in the location block"
+	error_page 500 https://MYDOMAIN.COM/?error=401&return=$scheme://$server_name$request_uri;	
 
+	
 #AUTHORIZATION BLOCK 
 location ~ /auth-(.*) {
  internal;
- proxy_pass http://[INTERNAL IP]:[ORGANIZR PORT #]/api/?v1/auth&group=$1;
+ proxy_pass http://[UNRAID_IP]:81/api/?v1/auth&group=$1;
  proxy_set_header Content-Length "";
 }
 
 #ORGANIZR CONTAINER
 location / {
-proxy_pass http://[INTERNAL IP]:[ORGANIZR PORT #];
+proxy_pass http://[UNRAID_IP]:81;
 include /config/nginx/proxy.conf;
 }
 
@@ -86,132 +88,190 @@ include /config/nginx/proxy.conf;
 ################################################################################################################
 #////////////////////////////////////////////////SUBDIRECTORIES\\\\\\\\\\\\\\\\\\\\\\\\#
 ################################################################################################################
+#Add auth_basic for container block to use popup passsword. This may break custom error pages and other things
+#auth_basic "Restricted";
+#auth_basic_user_file /config/nginx/.htpasswd;
+###Organizr auth - For server-auth with Organizr, remove unless you use Organi
+## To utilize the block drop "auth_request /auth-x;" within your location block, where x=OrgV2 group_id
+	#auth_request /auth-0;   #=Admin
+	#auth_request /auth-1;   #=Co-Admin 
+	#auth_request /auth-2;   #=Super User 
+	#auth_request /auth-3;   #=Power User 
+	#auth_request /auth-4;   #=User 
+	#auth_request /auth-999; #=Guest
 
-# PLEX SUB DIR
-# Check the comment in the bottom of this page for the include /config/nginx/plex.conf
-
-#PLEX
-location /web {
-	# serve the CSS code
-	proxy_pass http://[INTERNAL IP]:32400;
-}
-
-#PLEX - Main /plex rewrite
+# PLEX CONTAINER - Reverse Proxy
 location /plex {
-	# proxy request to plex server
-	proxy_pass http://[INTERNAL IP]:32400/web;
+    return 301 $scheme://$host/plex/;
+ }
+location ^~ /plex/ {
+	auth_request /auth-4;
+	rewrite /plex(.*) $1 break;
+    proxy_pass http://[UNRAID_IP]:32400;
+    proxy_intercept_errors off;
+    proxy_set_header X-Plex-Client-Identifier $http_x_plex_client_identifier;
+    proxy_set_header X-Plex-Device $http_x_plex_device;
+    proxy_set_header X-Plex-Device-Name $http_x_plex_device_name;
+    proxy_set_header X-Plex-Platform $http_x_plex_platform;
+    proxy_set_header X-Plex-Platform-Version $http_x_plex_platform_version;
+    proxy_set_header X-Plex-Product $http_x_plex_product;
+    proxy_set_header X-Plex-Token $http_x_plex_token;
+    proxy_set_header X-Plex-Version $http_x_plex_version;
+    proxy_set_header X-Plex-Nocache $http_x_plex_nocache;
+    proxy_set_header X-Plex-Provides $http_x_plex_provides;
+    proxy_set_header X-Plex-Device-Vendor $http_x_plex_device_vendor;
+    proxy_set_header X-Plex-Model $http_x_plex_model;
+ }
+	if ($http_referer ~* /plex) {
+    rewrite ^/web/(.*) /plex/web/$1? redirect;
 }
 
 #NZBGET CONTAINER - Reverse Proxy
 location /nzbget {
-auth_request /auth-4;
-proxy_pass http://[INTERNAL IP]:6789;
-include /config/nginx/proxy.conf;
+	auth_request /auth-4;
+	proxy_pass http://[UNRAID_IP]:6789;
+	include /config/nginx/proxy.conf;
+		proxy_set_header Accept-Encoding "";
+		sub_filter
+		'</head>'
+		'<link rel="stylesheet" type="text/css" href="https://gilbn.github.io/theme.park/CSS/themes/nzbget/plex.css">
+		</head>';
+		sub_filter_once on;
 }
 
 # NZBGET ALLOW API FOR MOBILE APPS
-location /nzbget/api {
-proxy_pass http://[INTERNAL IP]:6789/xmlrpc;
-include /config/nginx/proxy.conf; 
+	location /nzbget/api { #Base url can be anything you want
+	proxy_pass http://[UNRAID_IP]:6789/xmlrpc;
+	include /config/nginx/proxy.conf; 
 }  
 
-#IF USING binhex/DELUGE-VPN download and then rename the egg plugin to 'webapi.egg' and place inside plugin folder
-#DELUGE CONTAINER - Reverse Proxy
-location /deluge {
-    return 301 $scheme://$host/deluge/;
-}
-location /deluge/ {
-auth_request /auth-4;
-proxy_pass http://127.0.0.1:[ORGANIZR PORT #]12/;
-proxy_set_header X-Deluge-Base "/deluge/";
-#add_header X-Frame-Options "SAMEORIGIN";
-proxy_set_header Host $host;
-proxy_set_header X-Real-IP $remote_addr;
-proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-proxy_set_header X-Forwarded-Proto $scheme;
-proxy_http_version 1.1;
-proxy_no_cache $cookie_session;
-proxy_set_header Accept-Encoding "";
-proxy_set_header Connection "keep-alive";
-   sub_filter
-   '</head>'
-   '<link rel="stylesheet" type="text/css" href="https://gilbn.github.io/theme.park/CSS/themes/deluge/plex.css">
-   </head>';
-   sub_filter_once on;
-#include /config/nginx//js/deluge_noauth.js; 
-rewrite /deluge(.*) $1 break;
+# Transmission Reverse proxy
+location /transmission {
+	auth_request /auth-4;
+	proxy_pass http://[UNRAID_IP]:9091;
+	proxy_set_header Host $host;
+	proxy_set_header X-Real-IP $remote_addr;
+	proxy_set_header X-Forwarded-Host $server_name;
+	proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 }
 
-# DELUGE ALLOW API FOR MOBILE APPS
-location /deluge/json {
-auth_request off;
-proxy_pass http://[INTERNAL IP]:[ORGANIZR PORT #]12/;
+# Transmission ALLOW API FOR MOBILE APPS
+location /transmission/rpc { #Base url can be anything you want
+	auth_request off;
+	proxy_pass http://[UNRAID_IP]:9091/transmission/rpc;
 }
 
 #SONARR CONTAINER - Reverse Proxy
 location /sonarr {
-auth_request /auth-4;
-proxy_pass http://[INTERNAL IP]:8989/sonarr;
-include /config/nginx/proxy.conf;
+	auth_request /auth-4;
+	proxy_pass http://[UNRAID_IP]:8989/sonarr;
+	include /config/nginx/proxy.conf;
+		proxy_set_header Accept-Encoding "";
+		sub_filter
+		'</head>'
+		'<link rel="stylesheet" type="text/css" href="https://gilbn.github.io/theme.park/CSS/themes/sonarr/plex.css">
+		</head>';
+		sub_filter_once on;
 }
 
 # SONARR ALLOW API FOR MOBILE APPS
 location /sonarr/api {
-proxy_pass http://[INTERNAL IP]:8989/sonarr/api;
-include /config/nginx/proxy.conf; 
+	proxy_pass http://[UNRAID_IP]:8989/sonarr/api;
+	include /config/nginx/proxy.conf; 
 }
 
 #RADARR CONTAINER - Reverse Proxy
 location /radarr {
-auth_request /auth-4;
-proxy_pass http://[INTERNAL IP]:[RADARR PORT]/radarr;
-include /config/nginx/proxy.conf;
+	auth_request /auth-4;
+	proxy_pass http://[UNRAID_IP]:9057/radarr;
+	include /config/nginx/proxy.conf;
+		proxy_set_header Accept-Encoding "";
+		sub_filter
+		'</head>'
+		'<link rel="stylesheet" type="text/css" href="https://gilbn.github.io/theme.park/CSS/themes/radarr/plex.css">
+		</head>';
+		sub_filter_once on;
 }
 
 # RADARR ALLOW API FOR MOBILE APPS
 location /radarr/api {
-proxy_pass http://[INTERNAL IP]:[RADARR PORT]/radarr/api;
-include /config/nginx/proxy.conf; 
+	proxy_pass http://[UNRAID_IP]:9057/radarr/api;
+	include /config/nginx/proxy.conf; 
 }
 
 #LIDARR CONTAINER - Reverse Proxy
 location /lidarr {
-auth_request /auth-4;
-proxy_pass http://[INTERNAL IP]:8686/lidarr;
-include /config/nginx/proxy.conf;
-}
-
-# LIDARR ALLOW API FOR MOBILE APPS
-location /lidarr/api {
-proxy_pass http://[INTERNAL IP]:8686/lidarr/api;
-include /config/nginx/proxy.conf; 
-}
-
-#JACKETT CONTAINER - Reverse Proxy
-location /jackett/ {
-auth_request /auth-0;
-proxy_pass         http://[INTERNAL IP]:9117;
-proxy_http_version 1.1;
-proxy_set_header   Upgrade $http_upgrade;
-proxy_set_header   Connection keep-alive;
-proxy_cache_bypass $http_upgrade;
-proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
-proxy_set_header   X-Forwarded-Proto $scheme;
-proxy_set_header   X-Forwarded-Host $http_host;
-#include /config/nginx/proxy.conf; 
+	auth_request /auth-4;
+	proxy_pass http://[UNRAID_IP]:8686/lidarr;
+	include /config/nginx/proxy.conf;
+		proxy_set_header Accept-Encoding "";
+		sub_filter
+		'</head>'
+		'<link rel="stylesheet" type="text/css" href="https://gilbn.github.io/theme.park/CSS/themes/lidarr/plex.css">
+		</head>';
+		sub_filter_once on;
 }
 
 #LIBRARY CONTAINER - Reverse Proxy
 location /library {
-auth_request /auth-4;
-proxy_pass http://[INTERNAL IP]:5299/library;
-include /config/nginx/proxy.conf;
+	auth_request /auth-4;
+	proxy_pass http://[UNRAID_IP]:5299/library;
+	include /config/nginx/proxy.conf;
 }
 
+# LIDARR ALLOW API FOR MOBILE APPS
+location /lidarr/api {
+	proxy_pass http://[UNRAID_IP]:8686/lidarr/api;
+	include /config/nginx/proxy.conf; 
+}
+
+#JACKETT CONTAINER - Reverse Proxy
+location /jackett/ {
+	auth_request /auth-0;
+	proxy_pass         http://[UNRAID_IP]:9117;
+	proxy_http_version 1.1;
+	proxy_set_header   Upgrade $http_upgrade;
+	proxy_set_header   Connection keep-alive;
+	proxy_cache_bypass $http_upgrade;
+	proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+	proxy_set_header   X-Forwarded-Proto $scheme;
+	proxy_set_header   X-Forwarded-Host $http_host;
+		proxy_set_header Accept-Encoding "";
+		sub_filter
+		'</head>'
+		'<link rel="stylesheet" type="text/css" href="https://gilbn.github.io/theme.park/CSS/themes/jackett/plex.css">
+		</head>';
+		sub_filter_once on;
+	#include /config/nginx/proxy.conf; 
+}
+
+# OMBI v3 CONTAINER - Reverse proxy
+location /ombi {
+	auth_request /auth-4;
+	proxy_pass http://[UNRAID_IP]:3579/ombi;
+	proxy_http_version 1.1;
+	proxy_set_header Upgrade $http_upgrade;
+	proxy_set_header Connection keep-alive;
+	proxy_set_header Host $host;
+	proxy_cache_bypass $http_upgrade;
+		proxy_set_header Accept-Encoding "";
+		sub_filter
+		'</head>'
+		'<link rel="stylesheet" type="text/css" href="https://gilbn.github.io/theme.park/CSS/themes/sonarr/plex.css">
+		</head>';
+		sub_filter_once on;
+}
+	
+# OMBI ALLOW API FOR MOBILE APP - Requires BUYING APP
+#	location /ombi/api { 
+#	auth_request off;
+#	proxy_pass http://[UNRAID_IP]:3579/ombi/api;
+#}
 
 #GUACAMOLE CONTAINER - Reverse Proxy
 location /guacamole {
-    proxy_pass http://[INTERNAL IP]:[GUAC PORT]/guacamole;
+	auth_request /auth-4;
+	proxy_pass http://[UNRAID_IP]:8080/guacamole;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -219,58 +279,19 @@ location /guacamole {
 	proxy_http_version 1.1; #not needed?
 	proxy_set_header Upgrade $http_upgrade;
     access_log off;
-    auth_basic "Restricted"; #Can be disabled - I like extra security to guacamole
-	auth_basic_user_file /config/nginx/.htpasswd; #Can be disabled - I like extra security to guacamole
-	}
+		proxy_set_header Accept-Encoding "";
+		sub_filter
+		'</head>'
+		'<link rel="stylesheet" type="text/css" href="https://gilbn.github.io/theme.park/CSS/themes/guacamole/plex.css">
+		</head>';
+		sub_filter_once on;
+}
 	
-# Robots.txt disallow all with nginx
+# Robots.txt disallow all with nginx. Please this in the root dir of LetsEncrypt
 location = /robots.txt {
 	add_header  Content-Type  text/plain;
 	return 200 "User-agent: *\nDisallow: /\n";
    }
 }
 
-################################################################################################################
-#////////////////////////////////////////////////SUBDOMAINS\\\\\\\\\\\\\\\\\\\\\\\\\\#
-################################################################################################################
 
-#PLEX SERVER 
-server {
-listen 443 ssl http2;
-server_name plex plex.domain.com;
-
-location /error/ {
-alias /www/errorpages/;
-internal;
-}
-
-location / {
-proxy_intercept_errors off;
-proxy_redirect off;
-proxy_buffering off;
-proxy_hide_header X-Frame-Options;
-
-# Spoof the request as coming from ourselves since otherwise Plex will block access, e.g. logging:
-# "Request came in with unrecognized domain / IP 'tv.example.com' in header Referer; treating as non-local"
-proxy_set_header Host $server_addr;
-proxy_set_header Referer $server_addr;
-proxy_set_header Origin $server_addr;
-
-proxy_set_header X-Real-IP $remote_addr;
-proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-proxy_set_header X-Plex-Client-Identifier $http_x_plex_client_identifier;
-proxy_set_header Cookie $http_cookie;
-
-## Required for Websockets
-proxy_http_version 1.1;
-proxy_set_header Upgrade $http_upgrade;
-proxy_set_header Connection "upgrade";
-proxy_read_timeout 36000s; # Timeout after 10 hours
-
-proxy_next_upstream error timeout invalid_header http_500 http_502 http_503 http_504;
-
-#if ($cookie_cookiePassword != "yourcookiepasswordhere") { return 401; }
-proxy_pass http://[INTERNAL IP]:32400;
-}
-
-}
