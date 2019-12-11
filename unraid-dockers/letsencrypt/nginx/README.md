@@ -6,3 +6,5 @@
  - Host Path: point to the '/appdata/organizrv2/www/db/' folder
  - Access Mode: READ ONLY
  - Description: fail2ban path into organizrv2
+
+linuxserver-LE docker comes with fail2ban.
