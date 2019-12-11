@@ -1,6 +1,6 @@
 # A PERSONAL SETUP GUIDE
 
-## LetsEncrypt + OrganizrV2 + Fail2Ban + NZB360
+## LetsEncrypt + OrganizrV2 + Fail2Ban + NZB360 + Country Block
 Features:
  - [SSLLabs.com](https://www.ssllabs.com/): **A+** rating
  - Access Organizr via HTTPS/SSL
