@@ -1,6 +1,6 @@
 # A PERSONAL SETUP GUIDE
 
-## LetsEncrypt + OrganizrV2 + Fail2Ban + NZB360 + Country Block
+## [LetsEncrypt](https://github.com/linuxserver/docker-letsencrypt) + [OrganizrV2](https://github.com/causefx/Organizr) + [Fail2Ban](https://github.com/fail2ban/fail2ban) + [NZB360](https://nzb360.com/) + [GeoLite2](https://dev.maxmind.com/geoip/geoip2/geolite2/)
 Features:
  - [SSLLabs.com](https://www.ssllabs.com/): **A+** rating
  - Access Organizr via HTTPS/SSL
