@@ -139,7 +139,7 @@ location /nzbget {
 		sub_filter_once on;
 }
 
-# NZBGET ALLOW API FOR MOBILE APPS
+# NZBGET ALLOW API FOR NZB360 MOBILE APP
 	location /nzbget/api { #Base url can be anything you want
 	proxy_pass http://[UNRAID_IP]:6789/xmlrpc;
 	include /config/nginx/proxy.conf; 
@@ -153,12 +153,25 @@ location /transmission {
 	proxy_set_header X-Real-IP $remote_addr;
 	proxy_set_header X-Forwarded-Host $server_name;
 	proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+	proxy_intercept_errors off;
 }
 
-# Transmission ALLOW API FOR MOBILE APPS
+# Transmission ALLOW API FOR NZB360 MOBILE APP
 location /transmission/rpc { #Base url can be anything you want
 	auth_request off;
 	proxy_pass http://[UNRAID_IP]:9091/transmission/rpc;
+	proxy_intercept_errors off; #Needed?
+}
+
+# Deluge Reverse proxy - does not require a base url setting
+location /deluge {
+	auth_request /auth-4;
+    proxy_pass http://192.168.1.206:8112/;
+# 	proxy_set_header Host $host; #Needed?
+# 	proxy_intercept_errors off; #Needed?
+    proxy_set_header X-Deluge-Base "/deluge/";
+    add_header X-Frame-Options SAMEORIGIN;
+	include /config/nginx/proxy.conf; 
 }
 
 #SONARR CONTAINER - Reverse Proxy
@@ -174,7 +187,7 @@ location /sonarr {
 		sub_filter_once on;
 }
 
-# SONARR ALLOW API FOR MOBILE APPS
+# SONARR ALLOW API FOR NZB360 MOBILE APP
 location /sonarr/api {
 	proxy_pass http://[UNRAID_IP]:8989/sonarr/api;
 	include /config/nginx/proxy.conf; 
@@ -193,7 +206,7 @@ location /radarr {
 		sub_filter_once on;
 }
 
-# RADARR ALLOW API FOR MOBILE APPS
+# RADARR ALLOW API FOR NZB360 MOBILE APP
 location /radarr/api {
 	proxy_pass http://[UNRAID_IP]:9057/radarr/api;
 	include /config/nginx/proxy.conf; 
@@ -219,7 +232,7 @@ location /library {
 	include /config/nginx/proxy.conf;
 }
 
-# LIDARR ALLOW API FOR MOBILE APPS
+# LIDARR ALLOW API FOR NZB360 MOBILE APP
 location /lidarr/api {
 	proxy_pass http://[UNRAID_IP]:8686/lidarr/api;
 	include /config/nginx/proxy.conf; 
@@ -262,7 +275,7 @@ location /ombi {
 		sub_filter_once on;
 }
 	
-# OMBI ALLOW API FOR MOBILE APP - Requires BUYING APP
+# OMBI ALLOW API FOR NZB360 MOBILE APP
 #	location /ombi/api { 
 #	auth_request off;
 #	proxy_pass http://[UNRAID_IP]:3579/ombi/api;
