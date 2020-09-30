@@ -163,15 +163,37 @@ location /transmission/rpc { #Base url can be anything you want
 	proxy_intercept_errors off; #Needed?
 }
 
-# Deluge Reverse proxy - does not require a base url setting
+# Deluge Reverse proxy - ReWrite
 location /deluge {
-	auth_request /auth-4;
-    proxy_pass http://192.168.1.206:8112/;
-# 	proxy_set_header Host $host; #Needed?
-# 	proxy_intercept_errors off; #Needed?
+    return 301 $scheme://$host/deluge/;
+}
+
+# Deluge Reverse proxy - Main
+location ^~ /deluge/ {
+    auth_request /auth-4;
+    include /config/nginx/proxy.conf;
+    set $upstream_app [INTERNAL IP];
+    set $upstream_port 8112;
+    set $upstream_proto http;
+    proxy_pass $upstream_proto://$upstream_app:$upstream_port;
+
+    rewrite /deluge(.*) $1 break;
     proxy_set_header X-Deluge-Base "/deluge/";
-    add_header X-Frame-Options SAMEORIGIN;
-	include /config/nginx/proxy.conf; 
+    proxy_set_header Accept-Encoding "";
+}
+
+# Deluge ALLOW API FOR NZB360 MOBILE APP
+location ^~ /deluge/json {
+    include /config/nginx/proxy.conf;
+    #resolver 127.0.0.11 valid=30s;
+    set $upstream_app [INTERNAL IP];
+    set $upstream_port 8112;
+    set $upstream_proto http;
+    proxy_pass $upstream_proto://$upstream_app:$upstream_port;
+
+    rewrite /deluge(.*) $1 break;
+    proxy_set_header X-Deluge-Base "/deluge/";
+    proxy_intercept_errors off;
 }
 
 #SONARR CONTAINER - Reverse Proxy
