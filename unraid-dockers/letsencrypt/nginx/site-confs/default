@@ -182,7 +182,7 @@ location ^~ /deluge/ {
     proxy_set_header Accept-Encoding "";
 }
 
-# Deluge ALLOW API FOR NZB360 MOBILE APP
+# Deluge ALLOW API FOR NZB360 MOBILE APP - No API, Secured by REWRITE
 location ^~ /deluge/json {
     include /config/nginx/proxy.conf;
     #resolver 127.0.0.11 valid=30s;
@@ -209,7 +209,7 @@ location /sonarr {
 		sub_filter_once on;
 }
 
-# SONARR ALLOW API FOR NZB360 MOBILE APP
+# SONARR ALLOW API FOR NZB360 MOBILE APP - Requires API
 location /sonarr/api {
 	proxy_pass http://[UNRAID_IP]:8989/sonarr/api;
 	include /config/nginx/proxy.conf; 
@@ -228,7 +228,7 @@ location /radarr {
 		sub_filter_once on;
 }
 
-# RADARR ALLOW API FOR NZB360 MOBILE APP
+# RADARR ALLOW API FOR NZB360 MOBILE APP - Requires API
 location /radarr/api {
 	proxy_pass http://[UNRAID_IP]:9057/radarr/api;
 	include /config/nginx/proxy.conf; 
@@ -254,7 +254,7 @@ location /library {
 	include /config/nginx/proxy.conf;
 }
 
-# LIDARR ALLOW API FOR NZB360 MOBILE APP
+# LIDARR ALLOW API FOR NZB360 MOBILE APP - Requires API
 location /lidarr/api {
 	proxy_pass http://[UNRAID_IP]:8686/lidarr/api;
 	include /config/nginx/proxy.conf; 
@@ -262,7 +262,7 @@ location /lidarr/api {
 
 #JACKETT CONTAINER - Reverse Proxy
 location /jackett/ {
-	auth_request /auth-0;
+	auth_request /auth-4;
 	proxy_pass         http://[UNRAID_IP]:9117;
 	proxy_http_version 1.1;
 	proxy_set_header   Upgrade $http_upgrade;
@@ -278,6 +278,12 @@ location /jackett/ {
 		</head>';
 		sub_filter_once on;
 	#include /config/nginx/proxy.conf; 
+}
+
+# Jackett ALLOW API FOR NZB360 MOBILE APP - Requires API
+location /jackett/api {
+	proxy_pass http://[UNRAID_IP]:9117/jackett/api/v2.0/indexers/all/results/torznab;
+	include /config/nginx/proxy.conf;
 }
 
 # OMBI v3 CONTAINER - Reverse proxy
