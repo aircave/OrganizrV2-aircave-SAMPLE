@@ -1,6 +1,6 @@
-# A PERSONAL SETUP GUIDE - A WIP
+# A PERSONAL SETUP GUIDE - Work In Progress - NOT UP-TO-DATE
 
-## [LetsEncrypt](https://github.com/linuxserver/docker-letsencrypt) + [OrganizrV2](https://github.com/causefx/Organizr) + [Fail2Ban](https://github.com/fail2ban/fail2ban) + [NZB360](https://nzb360.com/) + [GeoLite2](https://dev.maxmind.com/geoip/geoip2/geolite2/)
+## [SWAG](https://github.com/linuxserver/docker-swag) + [OrganizrV2](https://github.com/causefx/Organizr) + [Fail2Ban](https://github.com/fail2ban/fail2ban) + [NZB360](https://nzb360.com/) + [GeoLite2](https://dev.maxmind.com/geoip/geoip2/geolite2/)
 Features:
  - [SSLLabs.com](https://www.ssllabs.com/): **A+** rating
  - Access Organizr via HTTPS/SSL
@@ -9,14 +9,14 @@ Features:
  - GeoLite2 (Country blocking)
  - Plex SSO (Organizr > Plex Tab > Logged In)
  - Organizr V2 style custom error pages
- - Setup focusing on the following apps: Radarr/Sonarr/Lidarr/NZBGet/Transmission/Guacamole/Plex/Jackett/Ombi/LazyLibrarian
+ - Setup focusing on the following apps: Radarr/Sonarr/Lidarr/NZBGet/Deluge/Guacamole/Plex/Jackett/Ombi/LazyLibrarian
 
 ## Prerequisites
- - Own a domain (i.e., MYDOMAIN.com) - I like [Google Domains](https://domains.google/).
- - Installed [unRAID](https://unraid.net/) with [dockers](https://forums.unraid.net/topic/38582-plug-in-community-applications/) of choice setup. And base URLS added where possible.
- - Port forwarding for LetsEncrypt (80/443) and Plex (32400).
- - Give LE access to the following folder: /appdata/organizrv2/www/db
- - A good code editor. I recommend [Notepad++](https://notepad-plus-plus.org/).
+ - Have a domain (i.e., MYDOMAIN.com) - Example: [Google Domains](https://domains.google/).
+ - Installed [unRAID](https://unraid.net/) with [dockers](https://forums.unraid.net/topic/38582-plug-in-community-applications/) of choice. And base URLS added where possible.
+ - Port forwarding for SWAG/LetsEncrypt (80/443) and Plex (32400) to work.
+ - Give SWAG access to the following folder: /appdata/organizrv2/www/db
+ - OPTIONAL: Use a good code editor. Example: [Notepad++](https://notepad-plus-plus.org/).
 
 ## Before your start
  - You will be editing files in the unRAID dockers. Make backups.
@@ -24,8 +24,8 @@ Features:
  - Remember to go over IP address and port numbers and change them as needed for your setup.
  - All MYDOMAIN references should be changed to your domain.
 
-## Let's Encrypt
-Go to the unRAID letsencrypt docker folder. Go to the letsencrypt/nginx/site-confs folder. You will be editing the “[default](https://github.com/aircave/OrganizrV2-aircave-SAMPLE/tree/master/unraid-dockers/letsencrypt/nginx/site-confs)” file. Copy and paste into your default file and change DOMAIN, UNRAID IP and docker PORT numbers as needed.
+## SWAG / Let's Encrypt
+Go to the unRAID SWAG/letsencrypt docker folder. Go to the letsencrypt/nginx/site-confs folder. You will be editing the “[default](https://github.com/aircave/OrganizrV2-aircave-SAMPLE/tree/master/unraid-dockers/letsencrypt/nginx/site-confs)” file. Copy and paste into your default file and change DOMAIN, UNRAID IP and docker PORT numbers as needed.
 
  - The 1st "SERVER BLOCK" part redirects unencrypted HTTP traffic to HTTPS/SSL.
  - The 2nd "MAIN SERVER BLOCK" gives general instructions and negotiates encryption.
